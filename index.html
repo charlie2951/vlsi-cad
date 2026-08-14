@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Verisim — browser-based Verilog simulator (Icarus Verilog -> WASM)
+  RTL Simulator — browser-based Verilog simulator (Icarus Verilog -> WASM)
   Files required next to this index.html:  ivlpp.js/.wasm  ivl.js/.wasm  vvp.js/.wasm
   Serve over HTTP:  python3 -m http.server 8090   ->   http://localhost:8090/
 -->
@@ -10,7 +10,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="VeriSim — Verilog simulator and synthesizer in your browser. Icarus Verilog and Yosys compiled to WebAssembly: edit, simulate, view waveforms, and see gate-level or RTL schematics. No install, no server.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231b6ef3'/%3E%3Cpath d='M8 7l8 18L24 7h-4.4L16 17.4 12.4 7z' fill='%23fff'/%3E%3C/svg%3E">
-<title>VeriSim — Verilog in your browser</title>
+<title>Verilog Explorer — Run Verilog code in your browser</title>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
@@ -23,32 +23,74 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 
 <style>
-  :root{
+  :root {
     --bg:#181a1f; --panel:#21252b; --edge:#333842;
     --ink:#abb2bf; --ink-dim:#828997; --ink-faint:#5c6370;
     --accent:#61afef; --wave:#61afef; --wave-bg:#282c34; --bad:#e06c75; --warn:#d19a66;
+    --cm-bg:#282c34; --cm-gutter:#21252b; --cm-linenumber:#5c6370;
+    --cm-keyword:#c678dd; --cm-number:#d19a66; --cm-comment:#5c6370;
+    --cm-string:#98c379; --cm-meta:#e06c75; --cm-variable:#61afef; --cm-operator:#56b6c2;
     --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
     --sans:'IBM Plex Sans',system-ui,sans-serif;
   }
+
+  /* Theme definitions */
+  body.theme-dracula {
+    --bg:#282a36; --panel:#21222c; --edge:#44475a;
+    --ink:#f8f8f2; --ink-dim:#6272a4; --ink-faint:#6272a4;
+    --accent:#bd93f9; --wave:#bd93f9; --wave-bg:#282a36; --bad:#ff5555; --warn:#ffb86c;
+    --cm-bg:#282a36; --cm-gutter:#21222c; --cm-linenumber:#6272a4;
+    --cm-keyword:#ff79c6; --cm-number:#bd93f9; --cm-comment:#6272a4;
+    --cm-string:#f1fa8c; --cm-meta:#ff5555; --cm-variable:#8be9fd; --cm-operator:#ff79c6;
+  }
+
+  body.theme-monokai {
+    --bg:#272822; --panel:#1e1f1c; --edge:#3e3d32;
+    --ink:#f8f8f2; --ink-dim:#75715e; --ink-faint:#75715e;
+    --accent:#a6e22e; --wave:#a6e22e; --wave-bg:#272822; --bad:#f92672; --warn:#fd971f;
+    --cm-bg:#272822; --cm-gutter:#1e1f1c; --cm-linenumber:#75715e;
+    --cm-keyword:#f92672; --cm-number:#ae81ff; --cm-comment:#75715e;
+    --cm-string:#e6db74; --cm-meta:#f92672; --cm-variable:#66d9ef; --cm-operator:#f92672;
+  }
+
+  body.theme-nord {
+    --bg:#2e3440; --panel:#242933; --edge:#434c5e;
+    --ink:#d8dee9; --ink-dim:#4c566a; --ink-faint:#616e88;
+    --accent:#88c0d0; --wave:#88c0d0; --wave-bg:#2e3440; --bad:#bf616a; --warn:#d08770;
+    --cm-bg:#2e3440; --cm-gutter:#242933; --cm-linenumber:#4c566a;
+    --cm-keyword:#81a1c1; --cm-number:#b48ead; --cm-comment:#616e88;
+    --cm-string:#a3be8c; --cm-meta:#bf616a; --cm-variable:#88c0d0; --cm-operator:#81a1c1;
+  }
+
+  body.theme-light {
+    --bg:#eaeaeb; --panel:#f3f3f3; --edge:#d0d0d0;
+    --ink:#24292e; --ink-dim:#6a737d; --ink-faint:#959da5;
+    --accent:#0366d6; --wave:#0366d6; --wave-bg:#ffffff; --bad:#d73a49; --warn:#e36209;
+    --cm-bg:#ffffff; --cm-gutter:#f3f3f3; --cm-linenumber:#959da5;
+    --cm-keyword:#d73a49; --cm-number:#005cc5; --cm-comment:#6a737d;
+    --cm-string:#032f62; --cm-meta:#d73a49; --cm-variable:#6f42c1; --cm-operator:#d73a49;
+  }
+
   *{box-sizing:border-box}
   html,body{height:100%;margin:0}
-  body{background:var(--bg);color:var(--ink);font-family:var(--sans);display:flex;flex-direction:column;overflow:hidden}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);display:flex;flex-direction:column;overflow:hidden;transition:background .2s, color .2s}
 
-  header{display:flex;align-items:center;gap:18px;padding:9px 18px;border-bottom:1px solid var(--edge);background:#21252b}
+  header{display:flex;align-items:center;gap:18px;padding:9px 18px;border-bottom:1px solid var(--edge);background:var(--panel)}
   .brand{display:flex;align-items:baseline;gap:10px}
-  .brand b{font-family:var(--mono);font-weight:600;font-size:19px;letter-spacing:.5px;color:#ffffff}
+  .brand b{font-family:var(--mono);font-weight:600;font-size:19px;letter-spacing:.5px;color:var(--ink)}
   .brand b span{color:var(--accent)}
   .brand small{color:var(--ink-dim);font-size:12px}
   .brand .ver{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent);border:1px solid var(--edge);border-radius:5px;padding:1px 6px}
   header .spacer{flex:1}
   select,button{font-family:var(--mono);font-size:13px}
-  select{background:#282c34;color:var(--ink);border:1px solid var(--edge);border-radius:6px;padding:6px 8px}
-  #run{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#181a1f;font-weight:600;
+  select{background:var(--cm-bg);color:var(--ink);border:1px solid var(--edge);border-radius:6px;padding:6px 8px}
+  #run{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#ffffff;font-weight:600;
     border:none;border-radius:6px;padding:8px 18px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .06s,filter .15s}
+  body.theme-light #run { color: #ffffff; }
   #run:hover{filter:brightness(1.1)} #run:active{transform:translateY(1px)} #run:disabled{opacity:.5;cursor:default}
   #run .tri{font-size:11px}
 
-  #urlBtn{background:#282c34;color:var(--ink-dim);border:1px solid var(--edge);border-radius:6px;padding:7px 12px;cursor:pointer}
+  #urlBtn{background:var(--cm-bg);color:var(--ink-dim);border:1px solid var(--edge);border-radius:6px;padding:7px 12px;cursor:pointer}
   #urlBtn:hover{border-color:var(--accent);color:var(--accent)}
 
   /* ---- load-from-URL modal ---- */
@@ -60,11 +102,11 @@
   .modal p{margin:0;font-size:12.5px;color:var(--ink-dim);line-height:1.5}
   .modal label{display:block;font-family:var(--mono);font-size:12px;color:var(--ink-dim);margin:13px 0 4px}
   .modal input[type=text]{width:100%;font-family:var(--mono);font-size:12.5px;padding:8px 10px;
-    border:1px solid var(--edge);border-radius:6px;background:#282c34;color:var(--ink)}
+    border:1px solid var(--edge);border-radius:6px;background:var(--cm-bg);color:var(--ink)}
   .modal input[type=text]:focus{outline:none;border-color:var(--accent)}
   .modal .hint{margin-top:13px;font-size:11.5px;color:var(--ink-faint);line-height:1.6}
   .modal .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-  .modal .chip{font-family:var(--mono);font-size:11px;background:#282c34;border:1px solid var(--edge);
+  .modal .chip{font-family:var(--mono);font-size:11px;background:var(--cm-bg);border:1px solid var(--edge);
     border-radius:5px;color:var(--ink-dim);padding:3px 9px;cursor:pointer}
   .modal .chip:hover{border-color:var(--accent);color:var(--accent)}
   .modal .err{min-height:16px;margin-top:12px;font-family:var(--mono);font-size:11.5px;color:var(--bad)}
@@ -72,76 +114,76 @@
   .modal .row .grp{display:flex;gap:8px}
   .modal .row button{font-family:var(--mono);font-size:13px;border-radius:6px;padding:8px 16px;cursor:pointer;font-weight:600}
   .modal .copied{font-family:var(--mono);font-size:11px;color:var(--accent)}
-  .modal .ghost{background:#282c34;color:var(--ink-dim);border:1px solid var(--edge)}
+  .modal .ghost{background:var(--cm-bg);color:var(--ink-dim);border:1px solid var(--edge)}
   .modal .ghost:hover{border-color:var(--accent);color:var(--accent)}
-  .modal .primary{background:var(--accent);color:#181a1f;border:none}
+  .modal .primary{background:var(--accent);color:#ffffff;border:none}
   .modal .primary:hover{filter:brightness(1.1)} .modal .primary:disabled{opacity:.55;cursor:default}
 
   main{flex:1;display:flex;min-height:0}
   #vsplit{flex:none;height:7px;background:var(--edge);cursor:row-resize;position:relative}
-  #vsplit::after{content:"";position:absolute;left:50%;top:2px;width:38px;height:3px;margin-left:-19px;border-radius:2px;background:#5c6370}
+  #vsplit::after{content:"";position:absolute;left:50%;top:2px;width:38px;height:3px;margin-left:-19px;border-radius:2px;background:var(--ink-faint)}
   #vsplit:hover{background:var(--accent)} #vsplit:hover::after{background:#fff}
   .pane{flex:1;display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--edge)}
   .pane:last-child{border-right:none}
   .pane h2{margin:0;padding:6px 12px;font-family:var(--mono);font-weight:500;font-size:12.5px;letter-spacing:.3px;
-    text-transform:none;color:var(--ink-dim);border-bottom:1px solid var(--edge);background:#21252b;display:flex;align-items:center;gap:8px}
+    text-transform:none;color:var(--ink-dim);border-bottom:1px solid var(--edge);background:var(--panel);display:flex;align-items:center;gap:8px}
   .pane h2 .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
   .pane h2 .grow{flex:1}
-  .pane h2 .lnk{background:#282c34;border:1px solid var(--edge);border-radius:5px;color:var(--ink-dim);
+  .pane h2 .lnk{background:var(--cm-bg);border:1px solid var(--edge);border-radius:5px;color:var(--ink-dim);
     font-family:var(--mono);font-size:11px;padding:2px 9px;cursor:pointer}
   .pane h2 .lnk:hover{border-color:var(--accent);color:var(--accent)}
   .pane .editor{flex:1;min-height:0;position:relative}
-  textarea{width:100%;height:100%;border:none;resize:none;outline:none;background:#282c34;color:var(--ink);
+  textarea{width:100%;height:100%;border:none;resize:none;outline:none;background:var(--cm-bg);color:var(--ink);
     padding:12px 14px;font-family:var(--mono);font-size:13.5px;line-height:1.55;tab-size:2}
-  .CodeMirror{height:100%!important;background:#282c34;color:var(--ink);font-family:var(--mono);font-size:13.5px;line-height:1.55}
-  .CodeMirror-gutters{background:#21252b;border-right:1px solid var(--edge)}
-  .CodeMirror-linenumber{color:var(--ink-faint)}
+  .CodeMirror{height:100%!important;background:var(--cm-bg);color:var(--ink);font-family:var(--mono);font-size:13.5px;line-height:1.55}
+  .CodeMirror-gutters{background:var(--cm-gutter);border-right:1px solid var(--edge)}
+  .CodeMirror-linenumber{color:var(--cm-linenumber)}
   
-  /* Syntax Highlighting (Dark Theme / Verilog) */
-  .cm-s-default .cm-keyword{color:#c678dd;font-weight:600}
-  .cm-s-default .cm-number{color:#d19a66}
-  .cm-s-default .cm-comment{color:#5c6370;font-style:italic}
-  .cm-s-default .cm-string{color:#98c379}
-  .cm-s-default .cm-meta{color:#e06c75}
-  .cm-s-default .cm-variable,.cm-s-default .cm-variable-2,.cm-s-default .cm-def{color:#61afef}
-  .cm-s-default .cm-operator{color:#56b6c2}
+  /* Dynamic Syntax Highlighting */
+  .cm-s-default .cm-keyword{color:var(--cm-keyword);font-weight:600}
+  .cm-s-default .cm-number{color:var(--cm-number)}
+  .cm-s-default .cm-comment{color:var(--cm-comment);font-style:italic}
+  .cm-s-default .cm-string{color:var(--cm-string)}
+  .cm-s-default .cm-meta{color:var(--cm-meta)}
+  .cm-s-default .cm-variable,.cm-s-default .cm-variable-2,.cm-s-default .cm-def{color:var(--cm-variable)}
+  .cm-s-default .cm-operator{color:var(--cm-operator)}
 
-  #bottom{height:43%;display:flex;flex-direction:column;border-top:1px solid var(--edge);background:#21252b}
-  .tabs{display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--edge);background:#21252b}
+  #bottom{height:43%;display:flex;flex-direction:column;border-top:1px solid var(--edge);background:var(--panel)}
+  .tabs{display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--edge);background:var(--panel)}
   .tab{font-family:var(--mono);font-size:12px;color:var(--ink-dim);padding:9px 14px;cursor:pointer;border-bottom:2px solid transparent;user-select:none}
-  .tab.active{color:#fff;border-bottom-color:var(--accent)}
+  .tab.active{color:var(--ink);border-bottom-color:var(--accent)}
   .tabs .spacer{flex:1}
   .tabs .stat{font-family:var(--mono);font-size:12px;color:var(--ink-dim);padding-right:6px}
-  .tabs .stat b{color:#98c379;font-weight:600}
+  .tabs .stat b{color:var(--accent);font-weight:600}
   .tabs a.act{font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none;padding:0 10px;cursor:pointer}
   .tabs a.act:hover{text-decoration:underline}
   .view{flex:1;min-height:0;overflow:auto;display:none}
   .view.active{display:block}
-  #console{font-family:var(--mono);font-size:13px;line-height:1.5;padding:10px 14px;white-space:pre-wrap;margin:0;color:var(--ink);background:#282c34}
+  #console{font-family:var(--mono);font-size:13px;line-height:1.5;padding:10px 14px;white-space:pre-wrap;margin:0;color:var(--ink);background:var(--cm-bg)}
   #console .l-err{color:var(--bad)} #console .l-warn{color:var(--warn)} #console .l-sys{color:var(--ink-dim)}
 
   /* waveform view: signal list + zoomable plot */
   #wave{padding:0;overflow:hidden;background:var(--wave-bg)}
   #synth.active{display:flex;flex-direction:column;overflow:hidden}
-  #stools{display:flex;align-items:center;gap:12px;padding:7px 12px;border-bottom:1px solid var(--edge);background:#21252b;flex:none}
+  #stools{display:flex;align-items:center;gap:12px;padding:7px 12px;border-bottom:1px solid var(--edge);background:var(--panel);flex:none}
   #stools .seg{display:inline-flex;border:1px solid var(--edge);border-radius:6px;overflow:hidden}
-  #stools .seg button{border:none;background:#282c34;color:var(--ink-dim);font-family:var(--mono);font-size:11px;padding:4px 12px;cursor:pointer}
-  #stools .seg button.on{background:var(--accent);color:#181a1f}
-  #stools #synRun{border:1px solid var(--edge);background:#282c34;color:var(--ink-dim);font-family:var(--mono);font-size:11px;border-radius:6px;padding:4px 12px;cursor:pointer}
+  #stools .seg button{border:none;background:var(--cm-bg);color:var(--ink-dim);font-family:var(--mono);font-size:11px;padding:4px 12px;cursor:pointer}
+  #stools .seg button.on{background:var(--accent);color:#ffffff}
+  #stools #synRun{border:1px solid var(--edge);background:var(--cm-bg);color:var(--ink-dim);font-family:var(--mono);font-size:11px;border-radius:6px;padding:4px 12px;cursor:pointer}
   #stools #synRun:hover{border-color:var(--accent);color:var(--accent)}
-  #synarea{flex:1;min-height:0;overflow:hidden;padding:0;background:#282c34;position:relative;cursor:grab}
+  #synarea{flex:1;min-height:0;overflow:hidden;padding:0;background:var(--cm-bg);position:relative;cursor:grab}
   #synarea svg{display:block;user-select:none}
   #synarea .empty{padding:12px}
   #wave.active{display:flex}
-  #siglist{width:204px;flex:none;overflow:auto;border-right:1px solid var(--edge);background:#21252b;display:none;font-family:var(--mono);font-size:12px}
+  #siglist{width:204px;flex:none;overflow:auto;border-right:1px solid var(--edge);background:var(--panel);display:none;font-family:var(--mono);font-size:12px}
   #siglist .sl-head{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;color:var(--ink-dim);
-    border-bottom:1px solid var(--edge);position:sticky;top:0;background:#21252b;letter-spacing:.5px}
+    border-bottom:1px solid var(--edge);position:sticky;top:0;background:var(--panel);letter-spacing:.5px}
   #siglist .sl-head a{color:var(--accent);cursor:pointer} #siglist .sl-head a:hover{text-decoration:underline}
   #siglist label{display:flex;gap:7px;align-items:center;padding:3px 10px;cursor:pointer;white-space:nowrap;color:var(--ink)}
-  #siglist label:hover{background:#282c34}
+  #siglist label:hover{background:var(--cm-bg)}
   #wavecol{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--wave-bg)}
-  #wtools{display:flex;align-items:center;gap:14px;padding:5px 10px;border-bottom:1px solid var(--edge);background:#21252b}
-  #wtools button{background:#282c34;border:1px solid var(--edge);border-radius:5px;padding:4px 12px;cursor:pointer;color:var(--ink)}
+  #wtools{display:flex;align-items:center;gap:14px;padding:5px 10px;border-bottom:1px solid var(--edge);background:var(--panel)}
+  #wtools button{background:var(--cm-bg);border:1px solid var(--edge);border-radius:5px;padding:4px 12px;cursor:pointer;color:var(--ink)}
   #wtools button:hover{border-color:var(--accent);color:var(--accent)}
   #wtools .hint{color:var(--ink-dim);font-family:var(--mono);font-size:11px}
   #wtools #wmarker{color:var(--accent);font-family:var(--mono);font-size:12px;font-weight:600}
@@ -156,6 +198,13 @@
 <header>
   <div class="brand"><b>Veri<span>Sim</span></b><span class="ver">v1.32</span><small>Verilog in your browser &middot; Icarus &rarr; WASM</small></div>
   <div class="spacer"></div>
+  <select id="themes" title="Select color theme">
+    <option value="dark" selected>Theme: Dark</option>
+    <option value="dracula">Theme: Dracula</option>
+    <option value="monokai">Theme: Monokai</option>
+    <option value="nord">Theme: Nord</option>
+    <option value="light">Theme: Light</option>
+  </select>
   <select id="examples" title="Load an example or start blank">
     <option value="" selected>Examples&hellip;</option>
     <option value="gate">Gate-Level &mdash; Half Adder</option>
@@ -228,6 +277,13 @@ function sanitize(s){                                 // fix invisible/smart cha
           .replace(/[\u2018\u2019\u201A\u201B\u2032]/g,"'")
           .replace(/[\u201C\u201D\u201E\u201F\u2033]/g,'"');
 }
+
+/* ---------- theme switcher ---------- */
+$('#themes').onchange = e => {
+  const theme = e.target.value;
+  document.body.className = theme === 'dark' ? '' : 'theme-' + theme;
+  if(WD) renderWave();
+};
 
 /* ---------- editors ---------- */
 let tbED,dgED;
@@ -664,6 +720,13 @@ function buildSigList(){
 
 function renderWave(){
   if(!WD) return;
+  const computedStyle = getComputedStyle(document.body);
+  const colorInk = computedStyle.getPropertyValue('--ink').trim();
+  const colorInkDim = computedStyle.getPropertyValue('--ink-dim').trim();
+  const colorAccent = computedStyle.getPropertyValue('--accent').trim();
+  const colorEdge = computedStyle.getPropertyValue('--edge').trim();
+  const colorBad = computedStyle.getPropertyValue('--bad').trim();
+
   const vars=WD.vars, tmax=WD.tmax;
   const order=selOrder.filter(id=>WD.vars[id]);     // draw in the order signals were picked
   if(!order.length){ waveArea.innerHTML='<div class="empty">Tick signals on the left to plot them &mdash; they appear in the order you pick.</div>'; _geom=null; $('#wmarker').textContent=''; return; }
@@ -685,25 +748,25 @@ function renderWave(){
   const defs=add('defs',{}); const cp=add('clipPath',{id:'pc'},defs);
   add('rect',{x:plotX,y:0,width:plotW,height:H},cp);
   const G=add('g',{'clip-path':'url(#pc)'});
-  add('line',{x1:plotX,y1:0,x2:plotX,y2:top+order.length*rowH+2,stroke:'#333842'});
+  add('line',{x1:plotX,y1:0,x2:plotX,y2:top+order.length*rowH+2,stroke:colorEdge});
 
   order.forEach((id,i)=>{
     const v=vars[id], y=top+i*rowH, hi=y+6, lo=y+rowH-12;
-    add('text',{x:10,y:y+ymid+4,fill:'#abb2bf','font-size':12}).textContent=v.name;
+    add('text',{x:10,y:y+ymid+4,fill:colorInk,'font-size':12}).textContent=v.name;
     const vals=v.vals.length?v.vals.slice():[[0,'x']];
     if(vals[0][0]>0) vals.unshift([0,'x']);
     for(let k=0;k<vals.length;k++){
       const t0=vals[k][0], val=vals[k][1], t1=(k+1<vals.length)?vals[k+1][0]:tmax;
       if(t1<view0 || t0>view0+vw) continue;
       const x0=X(t0), x1=X(t1), bad=/[xz]/i.test(val), isX=/x/i.test(val);
-      const fillU=isX?'#e06c75':'#5c6370', wv=Math.max(0,x1-x0);   // unknown fill: x bad-red, z dim-gray
+      const fillU=isX?colorBad:colorInkDim, wv=Math.max(0,x1-x0);   // unknown fill: x bad-red, z dim-gray
       if(v.width===1){
         if(bad){
           add('rect',{x:x0,y:hi,width:wv,height:lo-hi,fill:fillU,opacity:isX?.85:.45},G);
         } else {
           const yy=val==='1'?hi:lo;
-          add('line',{x1:x0,y1:yy,x2:x1,y2:yy,stroke:'var(--wave)','stroke-width':1.8},G);
-          if(k>0) add('line',{x1:x0,y1:hi,x2:x0,y2:lo,stroke:'var(--wave)','stroke-width':1,opacity:.6},G);
+          add('line',{x1:x0,y1:yy,x2:x1,y2:yy,stroke:colorAccent,'stroke-width':1.8},G);
+          if(k>0) add('line',{x1:x0,y1:hi,x2:x0,y2:lo,stroke:colorAccent,'stroke-width':1,opacity:.6},G);
         }
       } else {
         if(bad){
@@ -711,11 +774,11 @@ function renderWave(){
           if(x1-x0>20) add('text',{x:(x0+x1)/2,y:y+ymid+4,fill:'#ffffff','font-size':11,'text-anchor':'middle'},G)
             .textContent=isX?'x':'z';
         } else {
-          add('line',{x1:x0+2,y1:hi,x2:x1-2,y2:hi,stroke:'var(--wave)','stroke-width':1.6},G);
-          add('line',{x1:x0+2,y1:lo,x2:x1-2,y2:lo,stroke:'var(--wave)','stroke-width':1.6},G);
-          add('line',{x1:x0,y1:y+ymid,x2:x0+2,y2:hi,stroke:'var(--wave)','stroke-width':1.6},G);
-          add('line',{x1:x0,y1:y+ymid,x2:x0+2,y2:lo,stroke:'var(--wave)','stroke-width':1.6},G);
-          if(x1-x0>26) add('text',{x:(x0+x1)/2,y:y+ymid+4,fill:'#61afef','font-size':11,'text-anchor':'middle'},G)
+          add('line',{x1:x0+2,y1:hi,x2:x1-2,y2:hi,stroke:colorAccent,'stroke-width':1.6},G);
+          add('line',{x1:x0+2,y1:lo,x2:x1-2,y2:lo,stroke:colorAccent,'stroke-width':1.6},G);
+          add('line',{x1:x0,y1:y+ymid,x2:x0+2,y2:hi,stroke:colorAccent,'stroke-width':1.6},G);
+          add('line',{x1:x0,y1:y+ymid,x2:x0+2,y2:lo,stroke:colorAccent,'stroke-width':1.6},G);
+          if(x1-x0>26) add('text',{x:(x0+x1)/2,y:y+ymid+4,fill:colorAccent,'font-size':11,'text-anchor':'middle'},G)
             .textContent=fmt(v,val);
         }
       }
@@ -724,19 +787,19 @@ function renderWave(){
 
   // time axis for the visible window
   const ay=top+order.length*rowH+16;
-  add('line',{x1:plotX,y1:ay,x2:plotX+plotW,y2:ay,stroke:'#333842'});
+  add('line',{x1:plotX,y1:ay,x2:plotX+plotW,y2:ay,stroke:colorEdge});
   const step=niceStep(vw);
   for(let t=Math.ceil(view0/step)*step; t<=view0+vw+1e-9; t+=step){ const x=X(t);   // ticks at exact integer times
-    add('line',{x1:x,y1:ay-3,x2:x,y2:ay+3,stroke:'#5c6370'});
-    add('text',{x:x,y:ay+16,fill:'#828997','font-size':10,'text-anchor':'middle'}).textContent=fmtTime(t); }
+    add('line',{x1:x,y1:ay-3,x2:x,y2:ay+3,stroke:colorInkDim});
+    add('text',{x:x,y:ay+16,fill:colorInkDim,'font-size':10,'text-anchor':'middle'}).textContent=fmtTime(t); }
 
   // time cursor + per-signal value readout; time shown in toolbar
   if(curT!=null){
     const ct=Math.max(0,Math.min(tmax,Math.round(curT)));
     if(ct>=view0 && ct<=view0+vw){ const cx=X(ct);
-      add('line',{x1:cx,y1:top-4,x2:cx,y2:ay,stroke:'#e06c75','stroke-width':1.5}); }
+      add('line',{x1:cx,y1:top-4,x2:cx,y2:ay,stroke:colorBad,'stroke-width':1.5}); }
     order.forEach((id,i)=>{ const v=vars[id], y=top+i*rowH;
-      add('text',{x:plotX-8,y:y+ymid+4,fill:'#61afef','font-size':11,'text-anchor':'end','font-weight':600})
+      add('text',{x:plotX-8,y:y+ymid+4,fill:colorAccent,'font-size':11,'text-anchor':'end','font-weight':600})
         .textContent=fmt(v,valAt(v,ct)); });
     $('#wmarker').textContent='Marker: '+fmtTime(ct);
   } else $('#wmarker').textContent='';
