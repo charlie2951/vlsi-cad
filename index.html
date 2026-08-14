@@ -287,6 +287,13 @@ $('#themes').onchange = e => {
   //document.body.className = theme === 'light' ? '' : 'theme-' + theme;
   document.body.className = 'theme-' + theme;
   if(WD) renderWave();
+  // 1. Set the light theme immediately on page load
+applyTheme(themeSelect.value);
+
+// 2. Listen for theme changes from the dropdown menu
+themeSelect.onchange = e => {
+  applyTheme(e.target.value);
+};
 };
 
 /* ---------- editors ---------- */
