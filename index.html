@@ -110,7 +110,7 @@
     border-radius:5px;color:var(--ink-dim);padding:3px 9px;cursor:pointer}
   .modal .chip:hover{border-color:var(--accent);color:var(--accent)}
   .modal .err{min-height:16px;margin-top:12px;font-family:var(--mono);font-size:11.5px;color:var(--bad)}
-  .modal .row{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:6px}
+  .modal .row{display:flex;gap:8px;justify-space-between;align-items:center;margin-top:6px}
   .modal .row .grp{display:flex;gap:8px}
   .modal .row button{font-family:var(--mono);font-size:13px;border-radius:6px;padding:8px 16px;cursor:pointer;font-weight:600}
   .modal .copied{font-family:var(--mono);font-size:11px;color:var(--accent)}
@@ -193,7 +193,7 @@
   #wavearea svg text{font-family:var(--mono)}
 </style>
 </head>
-<body>
+<body class="theme-light">
 
 <header>
   <div class="brand"><b>EDA<span>Explorer</span></b><span class="ver">v1.0</span><small>Verilog in your browser &middot; Icarus &rarr; WASM</small></div>
@@ -282,18 +282,13 @@ function sanitize(s){                                 // fix invisible/smart cha
 }
 
 /* ---------- theme switcher ---------- */
-$('#themes').onchange = e => {
-  const theme = e.target.value;
-  //document.body.className = theme === 'light' ? '' : 'theme-' + theme;
+const applyTheme = theme => {
   document.body.className = 'theme-' + theme;
   if(WD) renderWave();
-  // 1. Set the light theme immediately on page load
-applyTheme(themeSelect.value);
-
-// 2. Listen for theme changes from the dropdown menu
-themeSelect.onchange = e => {
-  applyTheme(e.target.value);
 };
+
+$('#themes').onchange = e => {
+  applyTheme(e.target.value);
 };
 
 /* ---------- editors ---------- */
@@ -410,7 +405,7 @@ module decoder3to8(
         3'b010: out = 8'b0000_0100;
         3'b011: out = 8'b0000_1000;
         3'b100: out = 8'b0001_0000;
-        3 me101: out = 8'b0010_0000;
+        3'b101: out = 8'b0010_0000;
         3'b110: out = 8'b0100_0000;
         3'b111: out = 8'b1000_0000;
         default: out = 8'b0000_0000;
@@ -418,7 +413,7 @@ module decoder3to8(
     end
   end
 endmodule
-`.replace('3 me101', "3'b101"), // syntax fix safeguard
+`,
     tb:
 `\`timescale 1ns/1ps
 module tb;
