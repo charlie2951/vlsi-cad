@@ -284,7 +284,7 @@ function sanitize(s){                                 // fix invisible/smart cha
 /* ---------- theme switcher ---------- */
 $('#themes').onchange = e => {
   const theme = e.target.value;
-  document.body.className = theme === 'dark' ? '' : 'theme-' + theme;
+  document.body.className = theme === 'light' ? '' : 'theme-' + theme;
   if(WD) renderWave();
 };
 
