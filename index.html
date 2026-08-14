@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  RTL Simulator — browser-based Verilog simulator (Icarus Verilog -> WASM)
+  Verisim — browser-based Verilog simulator (Icarus Verilog -> WASM)
   Files required next to this index.html:  ivlpp.js/.wasm  ivl.js/.wasm  vvp.js/.wasm
   Serve over HTTP:  python3 -m http.server 8090   ->   http://localhost:8090/
 -->
@@ -10,7 +10,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="VeriSim — Verilog simulator and synthesizer in your browser. Icarus Verilog and Yosys compiled to WebAssembly: edit, simulate, view waveforms, and see gate-level or RTL schematics. No install, no server.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231b6ef3'/%3E%3Cpath d='M8 7l8 18L24 7h-4.4L16 17.4 12.4 7z' fill='%23fff'/%3E%3C/svg%3E">
-<title>Verilog Explorer — Run Verilog code in your browser</title>
+<title>EDA Explorer — Verilog in your browser</title>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
@@ -210,8 +210,11 @@
     <option value="gate">Gate-Level &mdash; Half Adder</option>
     <option value="dataflow">Dataflow &mdash; Half Adder</option>
     <option value="behavioral">Behavioral &mdash; Half Adder</option>
+    <option value="decoder3to8">Decoder &mdash; 3-to-8 Decoder</option>
     <option value="shiftreg">Shift Register &mdash; 4-bit (sequential)</option>
     <option value="counter2">Counter &mdash; 2-bit (sequential)</option>
+    <option value="counter4">Counter &mdash; 4-bit counter (sequential)</option>
+    
   </select>
   <button id="urlBtn" title="Load design.v and testbench.v from URLs">URL&hellip;</button>
   <select id="gen" title="Language generation">
@@ -332,7 +335,7 @@ function clearPane(get,set,blank){                   // OK -> clear this pane on
 $('#tbClear').onclick=()=>clearPane(getTB,setTB,BLANK_TB);
 $('#dgClear').onclick=()=>clearPane(getDesign,setDesign,BLANK_DESIGN);
 
-/* ---------- example library: one circuit (half adder), three modeling styles ---------- */
+/* ---------- example library ---------- */
 const HA_TB = title => `\`timescale 1ns/1ps
 module tb;
   reg  a, b;
@@ -380,6 +383,65 @@ module half_adder(input a, input b, output reg s, output reg c);
   end
 endmodule
 ` },
+  decoder3to8: {
+    design:
+`\`timescale 1ns/1ps
+// 3-to-8 Line Decoder (active-high outputs with enable)
+module decoder3to8(
+  input wire en,
+  input wire [2:0] in,
+  output reg [7:0] out
+);
+  always @(*) begin
+    if (!en) begin
+      out = 8'b0000_0000;
+    end else begin
+      case (in)
+        3'b000: out = 8'b0000_0001;
+        3'b001: out = 8'b0000_0010;
+        3'b010: out = 8'b0000_0100;
+        3'b011: out = 8'b0000_1000;
+        3'b100: out = 8'b0001_0000;
+        3 me101: out = 8'b0010_0000;
+        3'b110: out = 8'b0100_0000;
+        3'b111: out = 8'b1000_0000;
+        default: out = 8'b0000_0000;
+      endcase
+    end
+  end
+endmodule
+`.replace('3 me101', "3'b101"), // syntax fix safeguard
+    tb:
+`\`timescale 1ns/1ps
+module tb;
+  reg en;
+  reg [2:0] in;
+  wire [7:0] out;
+
+  decoder3to8 dut(.en(en), .in(in), .out(out));
+
+  integer i;
+
+  initial begin
+    $dumpfile("dump.vcd");
+    $dumpvars(0, tb);
+    $display("=== 3-to-8 Decoder Test ===");
+    $monitor("t=%0d ns  en=%b  in=%b (%0d) -> out=%b", $time, en, in, in, out);
+    
+    en = 0; in = 3'b000;
+    #10;
+    en = 1;
+    for (i = 0; i < 8; i = i + 1) begin
+      in = i[2:0];
+      #10;
+    end
+    en = 0;
+    #10;
+    $finish;
+  end
+endmodule
+`
+  },
   shiftreg: {
     design:
 `\`timescale 1ns/1ps
@@ -440,6 +502,56 @@ module tb;
     $monitor("%3d    %b%b", $time, q1, q0);
     #12 rst = 0;
     #80 $finish;
+  end
+endmodule
+` },
+  counter4: {
+    design:
+`\`timescale 1ns/1ps
+// 4-bit synchronous counter with enable and synchronous reset
+module counter4(
+  input wire clk,
+  input wire rst,
+  input wire en,
+  output reg [3:0] count
+);
+  always @(posedge clk) begin
+    if (rst) begin
+      count <= 4'b0000;
+    end else if (en) begin
+      count <= count + 1'b1;
+    end
+  end
+endmodule
+`,
+    tb:
+`\`timescale 1ns/1ps
+module tb;
+  reg clk = 0;
+  reg rst = 1;
+  reg en = 0;
+  wire [3:0] count;
+
+  counter4 dut(.clk(clk), .rst(rst), .en(en), .count(count));
+
+  always #5 clk = ~clk;          // 10 ns clock period
+
+  initial begin
+    $dumpfile("dump.vcd");
+    $dumpvars(0, tb);
+    $display("=== 4-Bit Counter Test ===");
+    $monitor("t=%0d ns  rst=%b  en=%b  count=%d (%b)", $time, rst, en, count, count);
+
+    #12 rst = 0; en = 1;         // Enable counting
+    #160;                        // Allow to roll over past 15
+    en = 0;                      // Pause counter
+    #30;
+    en = 1;                      // Resume counter
+    #20;
+    rst = 1;                     // Synchronous reset test
+    #10;
+    rst = 0;
+    #30 $finish;
   end
 endmodule
 ` }
