@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>K-Map Solver &  NAND/NOR Circuit Implementation</title>
+  <title>K-Map Solver &  NAND/NOR Implementation</title>
   <style>
     :root {
       --bg-color: #f8fafc;
@@ -245,14 +245,14 @@
       <label for="numVars">Variables: </label>
       <select id="numVars" onchange="onVarNumChange()">
         <option value="2">2</option>
-        <option value="3" selected>3</option>
-        <option value="4">4</option>
+        <option value="3">3</option>
+        <option value="4" selected>4</option>
       </select>
     </div>
 
     <div class="control-group">
       <label for="varInput">Names: </label>
-      <input type="text" id="varInput" value="A,B,C" placeholder="e.g. A,B,C" oninput="updateVarNames()">
+      <input type="text" id="varInput" value="A,B,C,D" placeholder="e.g. A,B,C,D" oninput="updateVarNames()">
     </div>
 
     <button onclick="resetGrid()">Reset Cells</button>
@@ -271,7 +271,7 @@
   <div class="results">
     <!-- Pure NAND Implementation (SOP) -->
     <div class="result-card">
-      <h3>SOP &rarr;  NAND Gate Circuit</h3>
+      <h3>SOP &rarr; Pure NAND Gate Circuit</h3>
       <div>Expression: <span id="sopExpr" class="expression">-</span></div>
       <ul id="sopImplicants" class="implicant-list"></ul>
       <div class="diagram-container">
@@ -281,7 +281,7 @@
 
     <!-- Pure NOR Implementation (POS) -->
     <div class="result-card">
-      <h3>POS &rarr;  NOR Gate Circuit</h3>
+      <h3>POS &rarr; Pure NOR Gate Circuit</h3>
       <div>Expression: <span id="posExpr" class="expression">-</span></div>
       <ul id="posImplicants" class="implicant-list"></ul>
       <div class="diagram-container">
@@ -295,8 +295,8 @@
   const COLORS = ['#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2'];
 
   let cellStates = {}; 
-  let currentNumVars = 3;
-  let activeVars = ['A', 'B', 'C'];
+  let currentNumVars = 4;
+  let activeVars = ['A', 'B', 'C', 'D'];
   let currentGrid = [];
 
   function getGrayCode(bits) {
@@ -671,7 +671,9 @@
     const numGates = groups.length;
     const heightPerGate = 65;
     const totalHeight = Math.max(160, numGates * heightPerGate + 40);
-    const svgWidth = 480;
+    
+    // Increased SVG width viewBox and right padding to prevent cropping
+    const svgWidth = 530; 
 
     svg.setAttribute('viewBox', `0 0 ${svgWidth} ${totalHeight}`);
 
@@ -1126,9 +1128,8 @@
   }
 
   window.onload = () => {
+    // Automatically initializes as 4-variable K-Map with all '0's
     onVarNumChange();
-    // Set 4, 5, 6, 7 minterms for 3 variables directly on load
-    [4, 5, 6, 7].forEach(m => toggleCell(m));
   };
 </script>
 </body>
