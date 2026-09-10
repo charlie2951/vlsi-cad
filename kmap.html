@@ -1,0 +1,1135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K-Map Solver &  NAND/NOR Circuit Implementation</title>
+  <style>
+    :root {
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --border-color: #cbd5e1;
+      --text-main: #0f172a;
+      --primary: #2563eb;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 1020px;
+      width: 100%;
+      background: var(--card-bg);
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      margin-top: 0;
+      text-align: center;
+      color: var(--primary);
+    }
+
+    .controls {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      background: #f1f5f9;
+      padding: 16px;
+      border-radius: 8px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    label {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    select, input[type="text"] {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      font-size: 1rem;
+    }
+
+    input[type="text"] {
+      width: 140px;
+      letter-spacing: 2px;
+      font-weight: bold;
+    }
+
+    button {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      background-color: var(--primary);
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background-color: #1d4ed8;
+    }
+
+    .instruction {
+      text-align: center;
+      font-size: 0.9rem;
+      color: #64748b;
+      margin-bottom: 16px;
+    }
+
+    .kmap-wrapper {
+      position: relative;
+      display: inline-block;
+      margin: 0 auto;
+      overflow: visible;
+      padding: 10px;
+    }
+
+    .kmap-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    table.kmap {
+      border-collapse: collapse;
+      position: relative;
+      background: white;
+    }
+
+    table.kmap th, table.kmap td {
+      border: 1px solid var(--border-color);
+      width: 60px;
+      height: 60px;
+      text-align: center;
+      vertical-align: middle;
+      position: relative;
+      user-select: none;
+    }
+
+    table.kmap th {
+      background-color: #f8fafc;
+      font-weight: bold;
+      color: #475569;
+    }
+
+    .header-corner {
+      position: relative;
+      font-size: 0.85rem;
+    }
+
+    .cell {
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1.2rem;
+      transition: background-color 0.15s ease;
+    }
+
+    .cell:hover {
+      background-color: #f1f5f9;
+    }
+
+    .cell-number {
+      position: absolute;
+      bottom: 2px;
+      right: 4px;
+      font-size: 0.65rem;
+      color: #94a3b8;
+      font-weight: normal;
+    }
+
+    .highlight-box {
+      position: absolute;
+      pointer-events: none;
+      border: 3px solid;
+      box-sizing: border-box;
+      z-index: 10;
+      opacity: 0.85;
+      transition: all 0.2s ease;
+    }
+
+    .results {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    @media (max-width: 800px) {
+      .results { grid-template-columns: 1fr; }
+    }
+
+    .result-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .result-card h3 {
+      margin-top: 0;
+      color: #334155;
+      border-bottom: 2px solid #cbd5e1;
+      padding-bottom: 6px;
+    }
+
+    .expression {
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: #0369a1;
+      word-break: break-all;
+    }
+
+    .implicant-list {
+      margin-top: 8px;
+      padding-left: 20px;
+      font-size: 0.85rem;
+      flex-grow: 0;
+    }
+
+    .color-pill {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+
+    .diagram-container {
+      margin-top: 12px;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    svg.gate-diagram {
+      width: 100%;
+      height: auto;
+      min-height: 200px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>K-Map Solver & NAND/NOR Implementation</h1>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="numVars">Variables: </label>
+      <select id="numVars" onchange="onVarNumChange()">
+        <option value="2">2</option>
+        <option value="3" selected>3</option>
+        <option value="4">4</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <label for="varInput">Names: </label>
+      <input type="text" id="varInput" value="A,B,C" placeholder="e.g. A,B,C" oninput="updateVarNames()">
+    </div>
+
+    <button onclick="resetGrid()">Reset Cells</button>
+  </div>
+
+  <div class="instruction">
+    Click cells to toggle state: <strong>0</strong> &rarr; <strong style="color:#2563eb;">1</strong> &rarr; <strong style="color:#d97706;">d (Don't Care)</strong>
+  </div>
+
+  <div class="kmap-container">
+    <div class="kmap-wrapper" id="kmapWrapper">
+      <!-- Dynamic K-Map Table -->
+    </div>
+  </div>
+
+  <div class="results">
+    <!-- Pure NAND Implementation (SOP) -->
+    <div class="result-card">
+      <h3>SOP &rarr;  NAND Gate Circuit</h3>
+      <div>Expression: <span id="sopExpr" class="expression">-</span></div>
+      <ul id="sopImplicants" class="implicant-list"></ul>
+      <div class="diagram-container">
+        <svg id="nandDiagram" class="gate-diagram"></svg>
+      </div>
+    </div>
+
+    <!-- Pure NOR Implementation (POS) -->
+    <div class="result-card">
+      <h3>POS &rarr;  NOR Gate Circuit</h3>
+      <div>Expression: <span id="posExpr" class="expression">-</span></div>
+      <ul id="posImplicants" class="implicant-list"></ul>
+      <div class="diagram-container">
+        <svg id="norDiagram" class="gate-diagram"></svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const COLORS = ['#e11d48', '#2563eb', '#059669', '#d97706', '#7c3aed', '#db2777', '#0891b2'];
+
+  let cellStates = {}; 
+  let currentNumVars = 3;
+  let activeVars = ['A', 'B', 'C'];
+  let currentGrid = [];
+
+  function getGrayCode(bits) {
+    if (bits === 1) return [0, 1];
+    const prev = getGrayCode(bits - 1);
+    const res = [...prev];
+    for (let i = prev.length - 1; i >= 0; i--) {
+      res.push((1 << (bits - 1)) | prev[i]);
+    }
+    return res;
+  }
+
+  function onVarNumChange() {
+    currentNumVars = parseInt(document.getElementById('numVars').value);
+    const defaultVars = ['A', 'B', 'C', 'D'];
+    document.getElementById('varInput').value = defaultVars.slice(0, currentNumVars).join(',');
+    updateVarNames();
+    resetGrid();
+  }
+
+  function updateVarNames() {
+    const raw = document.getElementById('varInput').value;
+    let parsed = raw.split(',').map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
+    
+    if (parsed.length < currentNumVars) {
+      const defaults = ['A', 'B', 'C', 'D'];
+      for (let i = parsed.length; i < currentNumVars; i++) parsed.push(defaults[i]);
+    }
+    activeVars = parsed.slice(0, currentNumVars);
+    renderGrid();
+    solve();
+  }
+
+  function resetGrid() {
+    const total = Math.pow(2, currentNumVars);
+    cellStates = {};
+    for (let i = 0; i < total; i++) cellStates[i] = '0';
+    renderGrid();
+    solve();
+  }
+
+  function toggleCell(minterm) {
+    const current = cellStates[minterm];
+    if (current === '0') cellStates[minterm] = '1';
+    else if (current === '1') cellStates[minterm] = 'd';
+    else cellStates[minterm] = '0';
+
+    const cellEl = document.getElementById(`cell-${minterm}`);
+    if (cellEl) {
+      cellEl.innerText = cellStates[minterm];
+      cellEl.style.color = cellStates[minterm] === '1' ? '#2563eb' : (cellStates[minterm] === 'd' ? '#d97706' : '#0f172a');
+    }
+    solve();
+  }
+
+  function renderGrid() {
+    const wrapper = document.getElementById('kmapWrapper');
+    wrapper.innerHTML = '';
+
+    // Assigning AB to columns and C (or CD) to rows
+    let colVars, rowVars;
+    if (currentNumVars === 2) {
+      colVars = 1; rowVars = 1;
+    } else if (currentNumVars === 3) {
+      colVars = 2; rowVars = 1; // AB (2 bits) on Column, C (1 bit) on Row
+    } else {
+      colVars = 2; rowVars = 2; // AB (2 bits) on Column, CD (2 bits) on Row
+    }
+
+    const colGray = getGrayCode(colVars);
+    const rowGray = getGrayCode(rowVars);
+
+    const colVarNames = activeVars.slice(0, colVars).join('');
+    const rowVarNames = activeVars.slice(colVars, currentNumVars).join('');
+
+    const table = document.createElement('table');
+    table.className = 'kmap';
+
+    const headerRow = document.createElement('tr');
+    const cornerTh = document.createElement('th');
+    cornerTh.className = 'header-corner';
+    cornerTh.innerHTML = `${rowVarNames} \\ ${colVarNames}`;
+    headerRow.appendChild(cornerTh);
+
+    colGray.forEach(c => {
+      const th = document.createElement('th');
+      th.innerText = c.toString(2).padStart(colVars, '0');
+      headerRow.appendChild(th);
+    });
+    table.appendChild(headerRow);
+
+    currentGrid = [];
+
+    rowGray.forEach((r, rIdx) => {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th');
+      th.innerText = r.toString(2).padStart(rowVars, '0');
+      tr.appendChild(th);
+
+      colGray.forEach((c, cIdx) => {
+        // Calculate minterm index based on binary representation (Cols = MSBs, Rows = LSBs)
+        const minterm = (c << rowVars) | r;
+        currentGrid[minterm] = { r: rIdx, c: cIdx };
+
+        const td = document.createElement('td');
+        td.className = 'cell';
+        td.dataset.minterm = minterm;
+
+        const valSpan = document.createElement('span');
+        valSpan.id = `cell-${minterm}`;
+        valSpan.innerText = cellStates[minterm] || '0';
+        valSpan.style.color = cellStates[minterm] === '1' ? '#2563eb' : (cellStates[minterm] === 'd' ? '#d97706' : '#0f172a');
+        td.appendChild(valSpan);
+
+        const numSpan = document.createElement('span');
+        numSpan.className = 'cell-number';
+        numSpan.innerText = minterm;
+        td.appendChild(numSpan);
+
+        td.onclick = () => toggleCell(minterm);
+        tr.appendChild(td);
+      });
+      table.appendChild(tr);
+    });
+
+    wrapper.appendChild(table);
+  }
+
+  // --- Quine-McCluskey Engine ---
+
+  function solveQuineMcCluskey(ones, dontCares, numVars) {
+    const total = Math.pow(2, numVars);
+    const allMinterms = [...ones, ...dontCares];
+
+    if (ones.length === 0) return [];
+    if (ones.length + dontCares.length === total) return [{ implicant: '-'.repeat(numVars), covered: new Set(ones) }];
+
+    let groups = allMinterms.map(m => ({
+      implicant: m.toString(2).padStart(numVars, '0'),
+      covered: new Set([m])
+    }));
+
+    const primeImplicants = [];
+
+    while (groups.length > 0) {
+      const nextGroups = [];
+      const combined = new Array(groups.length).fill(false);
+
+      for (let i = 0; i < groups.length; i++) {
+        for (let j = i + 1; j < groups.length; j++) {
+          const diffIdx = getSingleDiffIndex(groups[i].implicant, groups[j].implicant);
+          if (diffIdx !== -1) {
+            combined[i] = true;
+            combined[j] = true;
+            const newImp = groups[i].implicant.substring(0, diffIdx) + '-' + groups[i].implicant.substring(diffIdx + 1);
+            const newCovered = new Set([...groups[i].covered, ...groups[j].covered]);
+
+            if (!nextGroups.some(g => g.implicant === newImp)) {
+              nextGroups.push({ implicant: newImp, covered: newCovered });
+            }
+          }
+        }
+      }
+
+      for (let i = 0; i < groups.length; i++) {
+        if (!combined[i]) {
+          if (!primeImplicants.some(p => p.implicant === groups[i].implicant)) {
+            if ([...groups[i].covered].some(m => ones.includes(m))) {
+              primeImplicants.push(groups[i]);
+            }
+          }
+        }
+      }
+      groups = nextGroups;
+    }
+
+    return selectEssential(primeImplicants, ones);
+  }
+
+  function getSingleDiffIndex(str1, str2) {
+    let diff = 0, idx = -1;
+    for (let i = 0; i < str1.length; i++) {
+      if (str1[i] !== str2[i]) { diff++; idx = i; }
+    }
+    return diff === 1 ? idx : -1;
+  }
+
+  function selectEssential(primeImplicants, ones) {
+    const uncovered = new Set(ones);
+    const chosen = [];
+
+    ones.forEach(m => {
+      const covering = primeImplicants.filter(p => p.covered.has(m));
+      if (covering.length === 1 && !chosen.includes(covering[0])) {
+        chosen.push(covering[0]);
+        covering[0].covered.forEach(val => uncovered.delete(val));
+      }
+    });
+
+    while (uncovered.size > 0) {
+      let bestPI = null;
+      let maxCount = -1;
+      primeImplicants.forEach(p => {
+        if (!chosen.includes(p)) {
+          let count = 0;
+          p.covered.forEach(m => { if (uncovered.has(m)) count++; });
+          if (count > maxCount) { maxCount = count; bestPI = p; }
+        }
+      });
+      if (!bestPI || maxCount <= 0) break;
+      chosen.push(bestPI);
+      bestPI.covered.forEach(val => uncovered.delete(val));
+    }
+
+    return chosen;
+  }
+
+  function implicantToSOP(implicant, vars) {
+    let term = '';
+    for (let i = 0; i < implicant.length; i++) {
+      if (implicant[i] === '1') term += vars[i];
+      else if (implicant[i] === '0') term += vars[i] + "'";
+    }
+    return term || '1';
+  }
+
+  function implicantToPOS(implicant, vars) {
+    let terms = [];
+    for (let i = 0; i < implicant.length; i++) {
+      if (implicant[i] === '0') terms.push(vars[i]);
+      else if (implicant[i] === '1') terms.push(vars[i] + "'");
+    }
+    if (terms.length === 0) return '0';
+    return terms.length > 1 ? `(${terms.join(' + ')})` : terms[0];
+  }
+
+  function solve() {
+    const ones = [], zeros = [], dontCares = [];
+    const total = Math.pow(2, currentNumVars);
+
+    for (let i = 0; i < total; i++) {
+      if (cellStates[i] === '1') ones.push(i);
+      else if (cellStates[i] === '0') zeros.push(i);
+      else if (cellStates[i] === 'd') dontCares.push(i);
+    }
+
+    let sopGroups = [];
+    let sopText = '0';
+    if (ones.length === total || ones.length + dontCares.length === total) {
+      sopText = ones.length === 0 ? '0' : '1';
+    } else {
+      sopGroups = solveQuineMcCluskey(ones, dontCares, currentNumVars);
+      sopText = sopGroups.map(g => implicantToSOP(g.implicant, activeVars)).join(' + ') || '0';
+    }
+
+    let posGroups = [];
+    let posText = '1';
+    if (zeros.length === total || zeros.length + dontCares.length === total) {
+      posText = zeros.length === 0 ? '1' : '0';
+    } else {
+      posGroups = solveQuineMcCluskey(zeros, dontCares, currentNumVars);
+      posText = posGroups.map(g => implicantToPOS(g.implicant, activeVars)).join('') || '1';
+    }
+
+    document.getElementById('sopExpr').innerText = sopText;
+    document.getElementById('posExpr').innerText = posText;
+
+    renderImplicantList('sopImplicants', sopGroups, activeVars, 'SOP');
+    renderImplicantList('posImplicants', posGroups, activeVars, 'POS');
+
+    drawVisualHighlights(sopGroups);
+
+    // Plot Circuit Diagrams
+    drawLogicDiagram('nandDiagram', sopGroups, activeVars, 'NAND');
+    drawLogicDiagram('norDiagram', posGroups, activeVars, 'NOR');
+  }
+
+  function renderImplicantList(elementId, groups, vars, type) {
+    const ul = document.getElementById(elementId);
+    ul.innerHTML = '';
+    groups.forEach((g, idx) => {
+      const li = document.createElement('li');
+      const color = COLORS[idx % COLORS.length];
+      const term = type === 'SOP' ? implicantToSOP(g.implicant, vars) : implicantToPOS(g.implicant, vars);
+      const coveredArr = Array.from(g.covered).filter(m => cellStates[m] === (type === 'SOP' ? '1' : '0'));
+      li.innerHTML = `<span class="color-pill" style="background:${color}"></span> <strong>${term}</strong> (minterms: ${coveredArr.join(', ')})`;
+      ul.appendChild(li);
+    });
+  }
+
+  // --- Dynamic Circuit Visualizer ---
+
+  function drawBufferGate(svg, x, y, label) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    // Input Line
+    const inLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    inLine.setAttribute('x1', x - 40);
+    inLine.setAttribute('y1', y);
+    inLine.setAttribute('x2', x);
+    inLine.setAttribute('y2', y);
+    inLine.setAttribute('stroke', '#475569');
+    inLine.setAttribute('stroke-width', '2');
+    g.appendChild(inLine);
+
+    // Label Text
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('x', x - 45);
+    txt.setAttribute('y', y + 4);
+    txt.setAttribute('text-anchor', 'end');
+    txt.setAttribute('font-size', '12px');
+    txt.setAttribute('font-weight', 'bold');
+    txt.setAttribute('fill', '#0f172a');
+    txt.textContent = label;
+    g.appendChild(txt);
+
+    // Triangle Shape for Buffer Gate
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', `${x},${y-15} ${x+30},${y} ${x},${y+15}`);
+    polygon.setAttribute('fill', '#e0f2fe');
+    polygon.setAttribute('stroke', '#0284c7');
+    polygon.setAttribute('stroke-width', '2');
+    g.appendChild(polygon);
+
+    // Output Line
+    const outLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    outLine.setAttribute('x1', x + 30);
+    outLine.setAttribute('y1', y);
+    outLine.setAttribute('x2', x + 110);
+    outLine.setAttribute('y2', y);
+    outLine.setAttribute('stroke', '#0284c7');
+    outLine.setAttribute('stroke-width', '2.5');
+    g.appendChild(outLine);
+
+    const outTxt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    outTxt.setAttribute('x', x + 115);
+    outTxt.setAttribute('y', y + 4);
+    outTxt.setAttribute('font-weight', 'bold');
+    outTxt.setAttribute('fill', '#0284c7');
+    outTxt.textContent = 'Out';
+    g.appendChild(outTxt);
+
+    svg.appendChild(g);
+  }
+
+  function drawLogicDiagram(svgId, groups, vars, gateType) {
+    const svg = document.getElementById(svgId);
+    svg.innerHTML = '';
+
+    if (!groups || groups.length === 0) {
+      svg.setAttribute('viewBox', '0 0 300 80');
+      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('x', '150');
+      txt.setAttribute('y', '45');
+      txt.setAttribute('text-anchor', 'middle');
+      txt.setAttribute('fill', '#64748b');
+      txt.textContent = 'Constant Output / No Gates';
+      svg.appendChild(txt);
+      return;
+    }
+
+    const needsInverter = {};
+    vars.forEach(v => needsInverter[v] = false);
+
+    groups.forEach(g => {
+      for (let i = 0; i < g.implicant.length; i++) {
+        if (gateType === 'NAND' && g.implicant[i] === '0') needsInverter[vars[i]] = true;
+        if (gateType === 'NOR' && g.implicant[i] === '1') needsInverter[vars[i]] = true;
+      }
+    });
+
+    const numGates = groups.length;
+    const heightPerGate = 65;
+    const totalHeight = Math.max(160, numGates * heightPerGate + 40);
+    const svgWidth = 480;
+
+    svg.setAttribute('viewBox', `0 0 ${svgWidth} ${totalHeight}`);
+
+    const stage0X = 110;
+    const stage1X = 250;
+    const stage2X = 390;
+    const finalY = totalHeight / 2;
+
+    const invOutputsY = {};
+    let invYOffset = 40;
+
+    // Stage 0: Draw Inverters
+    vars.forEach((v) => {
+      if (needsInverter[v]) {
+        invOutputsY[v] = invYOffset;
+        if (gateType === 'NAND') {
+          drawNANDInverter(svg, stage0X, invYOffset, v);
+        } else {
+          drawNORInverter(svg, stage0X, invYOffset, v);
+        }
+        invYOffset += 45;
+      }
+    });
+
+    // Stage 1: Product/Sum Term Gates
+    groups.forEach((group, idx) => {
+      const gateY = (totalHeight / (numGates + 1)) * (idx + 1);
+
+      const inputLiterals = [];
+      const imp = group.implicant;
+
+      for (let i = 0; i < imp.length; i++) {
+        if (imp[i] === '-') continue;
+        
+        let isComplemented = (gateType === 'NAND' && imp[i] === '0') || (gateType === 'NOR' && imp[i] === '1');
+        
+        inputLiterals.push({
+          varName: vars[i],
+          isComplemented: isComplemented,
+          displayName: vars[i] + (isComplemented ? "'" : "")
+        });
+      }
+
+      // Edge Case Handle: Single literal term (e.g. A) routed through Buffer Gate instead of straight line
+      if (numGates === 1 && inputLiterals.length === 1 && !inputLiterals[0].isComplemented) {
+        drawBufferGate(svg, stage1X, finalY, inputLiterals[0].varName);
+        return;
+      }
+
+      if (gateType === 'NAND') {
+        drawNANDGate(svg, stage1X, gateY, inputLiterals, stage0X, invOutputsY);
+      } else {
+        drawNORGate(svg, stage1X, gateY, inputLiterals, stage0X, invOutputsY);
+      }
+
+      // Connect Stage 1 to Output line
+      if (numGates === 1) {
+        const outLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        outLine.setAttribute('x1', stage1X + 45);
+        outLine.setAttribute('y1', gateY);
+        outLine.setAttribute('x2', stage2X + 30);
+        outLine.setAttribute('y2', gateY);
+        outLine.setAttribute('stroke', '#0284c7');
+        outLine.setAttribute('stroke-width', '2.5');
+        svg.appendChild(outLine);
+
+        const outText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        outText.setAttribute('x', stage2X + 35);
+        outText.setAttribute('y', gateY + 4);
+        outText.setAttribute('font-weight', 'bold');
+        outText.setAttribute('fill', '#0284c7');
+        outText.textContent = 'Out';
+        svg.appendChild(outText);
+      } else {
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const midX = (stage1X + 45 + stage2X) / 2;
+        path.setAttribute('d', `M ${stage1X + 45} ${gateY} C ${midX} ${gateY}, ${midX} ${finalY}, ${stage2X} ${finalY}`);
+        path.setAttribute('stroke', '#475569');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('fill', 'none');
+        svg.appendChild(path);
+      }
+    });
+
+    // Stage 2: Combiner Gate for multiple terms
+    if (numGates > 1) {
+      if (gateType === 'NAND') {
+        drawNANDGate(svg, stage2X, finalY, [], stage0X, invOutputsY);
+      } else {
+        drawNORGate(svg, stage2X, finalY, [], stage0X, invOutputsY);
+      }
+
+      const outLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      outLine.setAttribute('x1', stage2X + 45);
+      outLine.setAttribute('y1', finalY);
+      outLine.setAttribute('x2', stage2X + 80);
+      outLine.setAttribute('y2', finalY);
+      outLine.setAttribute('stroke', '#0284c7');
+      outLine.setAttribute('stroke-width', '2.5');
+      svg.appendChild(outLine);
+
+      const outText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      outText.setAttribute('x', stage2X + 85);
+      outText.setAttribute('y', finalY + 4);
+      outText.setAttribute('font-weight', 'bold');
+      outText.setAttribute('fill', '#0284c7');
+      outText.textContent = 'Out';
+      svg.appendChild(outText);
+    }
+  }
+
+  function drawNANDInverter(svg, x, y, label) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    const inLineMain = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    inLineMain.setAttribute('x1', x - 45);
+    inLineMain.setAttribute('y1', y);
+    inLineMain.setAttribute('x2', x - 25);
+    inLineMain.setAttribute('y2', y);
+    inLineMain.setAttribute('stroke', '#475569');
+    inLineMain.setAttribute('stroke-width', '1.5');
+    g.appendChild(inLineMain);
+
+    const splitLine1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    splitLine1.setAttribute('d', `M ${x-25} ${y} L ${x-25} ${y-8} L ${x} ${y-8}`);
+    splitLine1.setAttribute('stroke', '#475569');
+    splitLine1.setAttribute('stroke-width', '1.5');
+    splitLine1.setAttribute('fill', 'none');
+    g.appendChild(splitLine1);
+
+    const splitLine2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    splitLine2.setAttribute('d', `M ${x-25} ${y} L ${x-25} ${y+8} L ${x} ${y+8}`);
+    splitLine2.setAttribute('stroke', '#475569');
+    splitLine2.setAttribute('stroke-width', '1.5');
+    splitLine2.setAttribute('fill', 'none');
+    g.appendChild(splitLine2);
+
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('x', x - 50);
+    txt.setAttribute('y', y + 4);
+    txt.setAttribute('text-anchor', 'end');
+    txt.setAttribute('font-size', '12px');
+    txt.setAttribute('font-weight', 'bold');
+    txt.setAttribute('fill', '#0f172a');
+    txt.textContent = label;
+    g.appendChild(txt);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M ${x} ${y-15} L ${x+15} ${y-15} A 15 15 0 0 1 ${x+15} ${y+15} L ${x} ${y+15} Z`);
+    path.setAttribute('fill', '#e0f2fe');
+    path.setAttribute('stroke', '#0284c7');
+    path.setAttribute('stroke-width', '1.5');
+    g.appendChild(path);
+
+    const bubble = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bubble.setAttribute('cx', x + 33);
+    bubble.setAttribute('cy', y);
+    bubble.setAttribute('r', '3');
+    bubble.setAttribute('fill', '#ffffff');
+    bubble.setAttribute('stroke', '#0284c7');
+    bubble.setAttribute('stroke-width', '1.5');
+    g.appendChild(bubble);
+
+    const outTxt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    outTxt.setAttribute('x', x + 40);
+    outTxt.setAttribute('y', y - 4);
+    outTxt.setAttribute('font-size', '10px');
+    outTxt.setAttribute('fill', '#0369a1');
+    outTxt.textContent = label + "'";
+    g.appendChild(outTxt);
+
+    svg.appendChild(g);
+  }
+
+  function drawNORInverter(svg, x, y, label) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    const inLineMain = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    inLineMain.setAttribute('x1', x - 45);
+    inLineMain.setAttribute('y1', y);
+    inLineMain.setAttribute('x2', x - 25);
+    inLineMain.setAttribute('y2', y);
+    inLineMain.setAttribute('stroke', '#475569');
+    inLineMain.setAttribute('stroke-width', '1.5');
+    g.appendChild(inLineMain);
+
+    const splitLine1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    splitLine1.setAttribute('d', `M ${x-25} ${y} L ${x-25} ${y-8} L ${x+4} ${y-8}`);
+    splitLine1.setAttribute('stroke', '#475569');
+    splitLine1.setAttribute('stroke-width', '1.5');
+    splitLine1.setAttribute('fill', 'none');
+    g.appendChild(splitLine1);
+
+    const splitLine2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    splitLine2.setAttribute('d', `M ${x-25} ${y} L ${x-25} ${y+8} L ${x+4} ${y+8}`);
+    splitLine2.setAttribute('stroke', '#475569');
+    splitLine2.setAttribute('stroke-width', '1.5');
+    splitLine2.setAttribute('fill', 'none');
+    g.appendChild(splitLine2);
+
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.setAttribute('x', x - 50);
+    txt.setAttribute('y', y + 4);
+    txt.setAttribute('text-anchor', 'end');
+    txt.setAttribute('font-size', '12px');
+    txt.setAttribute('font-weight', 'bold');
+    txt.setAttribute('fill', '#0f172a');
+    txt.textContent = label;
+    g.appendChild(txt);
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M ${x} ${y-15} Q ${x+8} ${y} ${x} ${y+15} Q ${x+20} ${y+15} ${x+30} ${y} Q ${x+20} ${y-15} ${x} ${y-15} Z`);
+    path.setAttribute('fill', '#fef3c7');
+    path.setAttribute('stroke', '#d97706');
+    path.setAttribute('stroke-width', '1.5');
+    g.appendChild(path);
+
+    const bubble = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bubble.setAttribute('cx', x + 33);
+    bubble.setAttribute('cy', y);
+    bubble.setAttribute('r', '3');
+    bubble.setAttribute('fill', '#ffffff');
+    bubble.setAttribute('stroke', '#d97706');
+    bubble.setAttribute('stroke-width', '1.5');
+    g.appendChild(bubble);
+
+    const outTxt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    outTxt.setAttribute('x', x + 40);
+    outTxt.setAttribute('y', y - 4);
+    outTxt.setAttribute('font-size', '10px');
+    outTxt.setAttribute('fill', '#b45309');
+    outTxt.textContent = label + "'";
+    g.appendChild(outTxt);
+
+    svg.appendChild(g);
+  }
+
+  function drawNANDGate(svg, x, y, inputs, invX, invYMap) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M ${x} ${y-20} L ${x+20} ${y-20} A 20 20 0 0 1 ${x+20} ${y+20} L ${x} ${y+20} Z`);
+    path.setAttribute('fill', '#f1f5f9');
+    path.setAttribute('stroke', '#334155');
+    path.setAttribute('stroke-width', '2');
+    g.appendChild(path);
+
+    const bubble = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bubble.setAttribute('cx', x + 43);
+    bubble.setAttribute('cy', y);
+    bubble.setAttribute('r', '4');
+    bubble.setAttribute('fill', '#ffffff');
+    bubble.setAttribute('stroke', '#334155');
+    bubble.setAttribute('stroke-width', '2');
+    g.appendChild(bubble);
+
+    if (inputs.length > 0) {
+      inputs.forEach((lit, idx) => {
+        const inY = y - 12 + (idx * (24 / Math.max(1, inputs.length - 1)));
+
+        if (lit.isComplemented && invYMap[lit.varName] !== undefined) {
+          const invY = invYMap[lit.varName];
+          const routePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          const midX = invX + 36 + (x - (invX + 36)) / 2;
+          routePath.setAttribute('d', `M ${invX + 36} ${invY} C ${midX} ${invY}, ${midX} ${inY}, ${x} ${inY}`);
+          routePath.setAttribute('stroke', '#0284c7');
+          routePath.setAttribute('stroke-width', '1.5');
+          routePath.setAttribute('fill', 'none');
+          g.appendChild(routePath);
+        } else {
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', x - 40);
+          line.setAttribute('y1', inY);
+          line.setAttribute('x2', x);
+          line.setAttribute('y2', inY);
+          line.setAttribute('stroke', '#475569');
+          line.setAttribute('stroke-width', '1.5');
+          g.appendChild(line);
+
+          const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          txt.setAttribute('x', x - 45);
+          txt.setAttribute('y', inY + 4);
+          txt.setAttribute('text-anchor', 'end');
+          txt.setAttribute('font-size', '11px');
+          txt.setAttribute('font-weight', 'bold');
+          txt.setAttribute('fill', '#0f172a');
+          txt.textContent = lit.displayName;
+          g.appendChild(txt);
+        }
+      });
+    }
+
+    svg.appendChild(g);
+  }
+
+  function drawNORGate(svg, x, y, inputs, invX, invYMap) {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M ${x} ${y-20} Q ${x+10} ${y} ${x} ${y+20} Q ${x+25} ${y+20} ${x+38} ${y} Q ${x+25} ${y-20} ${x} ${y-20} Z`);
+    path.setAttribute('fill', '#f1f5f9');
+    path.setAttribute('stroke', '#334155');
+    path.setAttribute('stroke-width', '2');
+    g.appendChild(path);
+
+    const bubble = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    bubble.setAttribute('cx', x + 42);
+    bubble.setAttribute('cy', y);
+    bubble.setAttribute('r', '4');
+    bubble.setAttribute('fill', '#ffffff');
+    bubble.setAttribute('stroke', '#334155');
+    bubble.setAttribute('stroke-width', '2');
+    g.appendChild(bubble);
+
+    if (inputs.length > 0) {
+      inputs.forEach((lit, idx) => {
+        const inY = y - 12 + (idx * (24 / Math.max(1, inputs.length - 1)));
+
+        if (lit.isComplemented && invYMap[lit.varName] !== undefined) {
+          const invY = invYMap[lit.varName];
+          const routePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          const midX = invX + 36 + (x + 5 - (invX + 36)) / 2;
+          routePath.setAttribute('d', `M ${invX + 36} ${invY} C ${midX} ${invY}, ${midX} ${inY}, ${x + 5} ${inY}`);
+          routePath.setAttribute('stroke', '#d97706');
+          routePath.setAttribute('stroke-width', '1.5');
+          routePath.setAttribute('fill', 'none');
+          g.appendChild(routePath);
+        } else {
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', x - 40);
+          line.setAttribute('y1', inY);
+          line.setAttribute('x2', x + 5);
+          line.setAttribute('y2', inY);
+          line.setAttribute('stroke', '#475569');
+          line.setAttribute('stroke-width', '1.5');
+          g.appendChild(line);
+
+          const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          txt.setAttribute('x', x - 45);
+          txt.setAttribute('y', inY + 4);
+          txt.setAttribute('text-anchor', 'end');
+          txt.setAttribute('font-size', '11px');
+          txt.setAttribute('font-weight', 'bold');
+          txt.setAttribute('fill', '#0f172a');
+          txt.textContent = lit.displayName;
+          g.appendChild(txt);
+        }
+      });
+    }
+
+    svg.appendChild(g);
+  }
+
+  function drawVisualHighlights(groups) {
+    const oldBoxes = document.querySelectorAll('.highlight-box');
+    oldBoxes.forEach(b => b.remove());
+
+    const wrapper = document.getElementById('kmapWrapper');
+
+    let colVars, rowVars;
+    if (currentNumVars === 2) {
+      colVars = 1; rowVars = 1;
+    } else if (currentNumVars === 3) {
+      colVars = 2; rowVars = 1;
+    } else {
+      colVars = 2; rowVars = 2;
+    }
+
+    const numCols = 1 << colVars;
+    const numRows = 1 << rowVars;
+
+    groups.forEach((group, idx) => {
+      const color = COLORS[idx % COLORS.length];
+      const minterms = Array.from(group.covered);
+
+      const coords = minterms.map(m => currentGrid[m]);
+      const rows = Array.from(new Set(coords.map(c => c.r))).sort((a,b)=>a-b);
+      const cols = Array.from(new Set(coords.map(c => c.c))).sort((a,b)=>a-b);
+
+      const wrapsRow = (rows.length > 1) && (rows[rows.length - 1] - rows[0] !== rows.length - 1);
+      const wrapsCol = (cols.length > 1) && (cols[cols.length - 1] - cols[0] !== cols.length - 1);
+
+      const rowClusters = splitWrapClusters(rows, numRows);
+      const colClusters = splitWrapClusters(cols, numCols);
+
+      rowClusters.forEach(rCluster => {
+        colClusters.forEach(cCluster => {
+          const clusterCells = minterms.filter(m => {
+            const pos = currentGrid[m];
+            return rCluster.includes(pos.r) && cCluster.includes(pos.c);
+          }).map(m => wrapper.querySelector(`[data-minterm='${m}']`));
+
+          if (clusterCells.length === 0) return;
+
+          const rect = getClusterRect(clusterCells, wrapper);
+          
+          const box = document.createElement('div');
+          box.className = 'highlight-box';
+          box.style.borderColor = color;
+          box.style.backgroundColor = color + '22';
+
+          const borderRadius = '12px';
+
+          box.style.borderTopStyle = (wrapsRow && rCluster.includes(0)) ? 'dashed' : 'solid';
+          box.style.borderBottomStyle = (wrapsRow && rCluster.includes(numRows - 1)) ? 'dashed' : 'solid';
+          box.style.borderLeftStyle = (wrapsCol && cCluster.includes(0)) ? 'dashed' : 'solid';
+          box.style.borderRightStyle = (wrapsCol && cCluster.includes(numCols - 1)) ? 'dashed' : 'solid';
+
+          let tl = (wrapsRow && rCluster.includes(0)) || (wrapsCol && cCluster.includes(0)) ? '0px' : borderRadius;
+          let tr = (wrapsRow && rCluster.includes(0)) || (wrapsCol && cCluster.includes(numCols - 1)) ? '0px' : borderRadius;
+          let bl = (wrapsRow && rCluster.includes(numRows - 1)) || (wrapsCol && cCluster.includes(0)) ? '0px' : borderRadius;
+          let br = (wrapsRow && rCluster.includes(numRows - 1)) || (wrapsCol && cCluster.includes(numCols - 1)) ? '0px' : borderRadius;
+
+          box.style.borderRadius = `${tl} ${tr} ${br} ${bl}`;
+
+          box.style.left = `${rect.left + 3}px`;
+          box.style.top = `${rect.top + 3}px`;
+          box.style.width = `${rect.width - 6}px`;
+          box.style.height = `${rect.height - 6}px`;
+
+          wrapper.appendChild(box);
+        });
+      });
+    });
+  }
+
+  function splitWrapClusters(arr, maxDim) {
+    if (arr.length <= 1) return [arr];
+    if (arr.includes(0) && arr.includes(maxDim - 1) && arr.length < maxDim) {
+      const group1 = arr.filter(x => x < maxDim / 2);
+      const group2 = arr.filter(x => x >= maxDim / 2);
+      return [group1, group2].filter(g => g.length > 0);
+    }
+    return [arr];
+  }
+
+  function getClusterRect(cells, parent) {
+    const parentRect = parent.getBoundingClientRect();
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    cells.forEach(cell => {
+      const r = cell.getBoundingClientRect();
+      const left = r.left - parentRect.left;
+      const top = r.top - parentRect.top;
+      minX = Math.min(minX, left);
+      minY = Math.min(minY, top);
+      maxX = Math.max(maxX, left + r.width);
+      maxY = Math.max(maxY, top + r.height);
+    });
+
+    return { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
+  }
+
+  window.onload = () => {
+    onVarNumChange();
+    // Set 4, 5, 6, 7 minterms for 3 variables directly on load
+    [4, 5, 6, 7].forEach(m => toggleCell(m));
+  };
+</script>
+</body>
+</html>
